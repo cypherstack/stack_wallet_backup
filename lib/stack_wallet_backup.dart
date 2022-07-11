@@ -297,11 +297,11 @@ Future<Tuple2<PackageData, List<int>>> encryptRaw(String passphrase, Uint8List p
   var rng = Random.secure();
 
   // Use the PBKDF to derive an AEAD key from the passphrase
-  final pbkdfNonce = List<int>.generate(parameters.pbkdfNonceSize, (_) => rng.nextInt(0xFF));
+  final pbkdfNonce = List<int>.generate(parameters.pbkdfNonceSize, (_) => rng.nextInt(0xFF + 1));
   final derivedKey = await parameters.pbkdf(passphrase, pbkdfNonce);
   
   // Use the AEAD to encrypt the plaintext
-  final aeadNonce = List<int>.generate(parameters.aeadNonceSize, (_) => rng.nextInt(0xFF));
+  final aeadNonce = List<int>.generate(parameters.aeadNonceSize, (_) => rng.nextInt(0xFF + 1));
   final blob = await parameters.aeadEncrypt(derivedKey, aeadNonce, plaintext);
 
   // Assemble data and add the checksum
