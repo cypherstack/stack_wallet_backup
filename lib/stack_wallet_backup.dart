@@ -68,26 +68,6 @@ VersionParameters getVersion(int? version) {
   return foundVersion;
 }
 
-/// An exception indicating a bad PBKDF nonce
-class BadPbkdfNonce implements Exception {
-  String errMsg() => 'Bad PBKDF nonce length';
-}
-
-/// An exception indicating a bad AEAD key
-class BadAeadKey implements Exception {
-  String errMsg() => 'Bad AEAD key length';
-}
-
-/// An exception indicating a bad AEAD nonce
-class BadAeadNonce implements Exception {
-  String errMsg() => 'Bad AEAD nonce length';
-}
-
-/// An exception indicating a bad AEAD MAC
-class BadAeadMac implements Exception {
-  String errMsg() => 'Bad AEAD MAC length';
-}
-
 /// An exception indicating incomplete data
 class BadDataLength implements Exception {
   String errMsg() => 'Bad data length';
