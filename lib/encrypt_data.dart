@@ -75,7 +75,7 @@ Future<Uint8List> encrypt(SimplePublicKey recipient, Uint8List data) async {
     data,
     secretKey: SecretKey(aeadKey),
     nonce: nonce,
-    aad: utf8.encode("Stack Wallet data encryption AEAD ") + ephemeralPublicKey.bytes
+    aad: utf8.encode("Stack Wallet data encryption AEAD ") + ephemeralPublicKey.bytes + recipient.bytes
   );
 
   // Encode the output
@@ -91,8 +91,8 @@ Future<Uint8List> encrypt(SimplePublicKey recipient, Uint8List data) async {
 /// Decrypt data
 Future<Uint8List> decrypt(SimpleKeyPair key, Uint8List data) async {
   // Verify the key is valid for X25519
-  final SimpleKeyPairData keyData = await key.extract();
-  if (keyData.type != KeyPairType.x25519) {
+  final SimplePublicKey publicKey = await key.extractPublicKey();
+  if (publicKey.type != KeyPairType.x25519) {
     throw BadKeyType();
   }
 
@@ -127,7 +127,7 @@ Future<Uint8List> decrypt(SimpleKeyPair key, Uint8List data) async {
     final List<int> plaintext = await Xchacha20.poly1305Aead().decrypt(
       aeadData,
       secretKey: SecretKey(aeadKey),
-      aad: utf8.encode("Stack Wallet data encryption AEAD ") + ephemeralPublicKey
+      aad: utf8.encode("Stack Wallet data encryption AEAD ") + ephemeralPublicKey + publicKey.bytes
     );
 
     return Uint8List.fromList(plaintext);
