@@ -70,7 +70,7 @@ Future<Uint8List> encrypt(SimplePublicKey recipient, Uint8List data) async {
 
   // Encrypt the data with an AEAD
   Random rng = Random.secure();
-  final List<int> nonce = List<int>.generate(24, (_) => rng.nextInt(0xFF + 1));
+  final List<int> nonce = List<int>.generate(Xchacha20.poly1305Aead().nonceLength, (_) => rng.nextInt(0xFF + 1));
   final SecretBox ciphertext = await Xchacha20.poly1305Aead().encrypt(
     data,
     secretKey: SecretKey(aeadKey),
