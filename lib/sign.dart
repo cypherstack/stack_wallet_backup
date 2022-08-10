@@ -43,8 +43,13 @@ Future<void> verify(SimplePublicKey key, Uint8List message, Uint8List signatureB
 
   // Verify the signature
   final Signature signature = Signature(signatureBytes, publicKey: key);
-  final bool verified = await Ed25519().verify(message, signature: signature);
-  if (!verified) {
+  try {
+    final bool verified = await Ed25519().verify(message, signature: signature);
+
+    if (!verified) {
+      throw BadSignature();
+    }
+  } catch (_) {
     throw BadSignature();
   }
 }

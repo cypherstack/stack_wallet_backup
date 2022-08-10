@@ -67,7 +67,7 @@ void main() {
   });
 
   // Evil signature
-  test('evil signature (random)', () async {
+  test('evil signature', () async {
     // Generate keypair
     final SimpleKeyPair keyPair = await newKeyPair();
     final SimplePublicKey publicKey = await keyPair.extractPublicKey();
@@ -80,6 +80,25 @@ void main() {
 
     // Replace signature
     final Uint8List evilSignature = Uint8List.fromList(randomBytes(signature.length));
+
+    // Verify
+    expect(() => verify(publicKey, message, evilSignature), throwsA(const TypeMatcher<BadSignature>()));
+  });
+
+  // Bad signature length
+  test('bad signature length', () async {
+    // Generate keypair
+    final SimpleKeyPair keyPair = await newKeyPair();
+    final SimplePublicKey publicKey = await keyPair.extractPublicKey();
+
+    // Generate random message
+    final Uint8List message = Uint8List.fromList(randomBytes(256));
+
+    // Sign
+    final Uint8List signature = await sign(keyPair, message);
+
+    // Replace signature
+    final Uint8List evilSignature = Uint8List.fromList(randomBytes(signature.length-1));
 
     // Verify
     expect(() => verify(publicKey, message, evilSignature), throwsA(const TypeMatcher<BadSignature>()));
