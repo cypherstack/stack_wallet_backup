@@ -23,13 +23,13 @@ Future<SimpleKeyPair> newKeyPair() async {
 /// Sign data
 Future<Uint8List> sign(SimpleKeyPair key, Uint8List message) async {
   // Verify the key is valid for Ed25519
-  final keyData = await key.extract();
+  final SimpleKeyPairData keyData = await key.extract();
   if (keyData.type != KeyPairType.ed25519) {
     throw BadKeyType();
   }
 
   // Sign the data
-  final signature = await Ed25519().sign(message, keyPair: key);
+  final Signature signature = await Ed25519().sign(message, keyPair: key);
 
   return Uint8List.fromList(signature.bytes);
 }
@@ -42,8 +42,8 @@ Future<void> verify(SimplePublicKey key, Uint8List message, Uint8List signatureB
   }
 
   // Verify the signature
-  final signature = Signature(signatureBytes, publicKey: key);
-  final verified = await Ed25519().verify(message, signature: signature);
+  final Signature signature = Signature(signatureBytes, publicKey: key);
+  final bool verified = await Ed25519().verify(message, signature: signature);
   if (!verified) {
     throw BadSignature();
   }
