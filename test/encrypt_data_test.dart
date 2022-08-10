@@ -15,17 +15,17 @@ void main() {
   /// Correct encryption and decryption succeeds
   test('success', () async {
     // Generate recipient keypair
-    SimpleKeyPair recipientKeyPair = await newKeyPair();
-    SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
+    final SimpleKeyPair recipientKeyPair = await newKeyPair();
+    final SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
 
     // Generate random plaintext
-    final plaintext = Uint8List.fromList(randomBytes(256));
+    final Uint8List plaintext = Uint8List.fromList(randomBytes(256));
 
     // Encrypt
-    Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
+    final Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
 
     // Decrypt
-    Uint8List decrypted = await decrypt(recipientKeyPair, ciphertext);
+    final Uint8List decrypted = await decrypt(recipientKeyPair, ciphertext);
 
     expect(decrypted, plaintext);
   });
@@ -33,10 +33,10 @@ void main() {
   /// Bad data length
   test('bad data length', () async {
     // Generate recipient keypair
-    SimpleKeyPair recipientKeyPair = await newKeyPair();
+    final SimpleKeyPair recipientKeyPair = await newKeyPair();
 
     // Minimum allowed data length
-    final minimumDataLength = KeyPairType.x25519.publicKeyLength + Xchacha20.poly1305Aead().nonceLength + Poly1305().macLength;
+    final int minimumDataLength = KeyPairType.x25519.publicKeyLength + Xchacha20.poly1305Aead().nonceLength + Poly1305().macLength;
 
     expect(() => decrypt(recipientKeyPair, Uint8List.fromList(randomBytes(minimumDataLength - 1))), throwsA(const TypeMatcher<BadDataSize>()));
   });
@@ -44,17 +44,17 @@ void main() {
   /// Wrong recipient key
   test('wrong recipient key', () async {
     // Generate recipient keypair
-    SimpleKeyPair recipientKeyPair = await newKeyPair();
-    SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
+    final SimpleKeyPair recipientKeyPair = await newKeyPair();
+    final SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
 
     // Generate random plaintext
-    final plaintext = Uint8List.fromList(randomBytes(256));
+    final Uint8List plaintext = Uint8List.fromList(randomBytes(256));
 
     // Encrypt
-    Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
+    final Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
 
     // Generate wrong key pair
-    SimpleKeyPair wrongRecipientKeyPair = await newKeyPair();
+    final SimpleKeyPair wrongRecipientKeyPair = await newKeyPair();
 
     expect(() => decrypt(wrongRecipientKeyPair, ciphertext), throwsA(const TypeMatcher<FailedDecryption>()));
   });
@@ -62,18 +62,18 @@ void main() {
   /// Evil ephemeral public key
   test('evil ephemeral public key', () async {
     // Generate recipient keypair
-    SimpleKeyPair recipientKeyPair = await newKeyPair();
-    SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
+    final SimpleKeyPair recipientKeyPair = await newKeyPair();
+    final SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
 
     // Generate random plaintext
-    final plaintext = Uint8List.fromList(randomBytes(256));
+    final Uint8List plaintext = Uint8List.fromList(randomBytes(256));
 
     // Encrypt
-    Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
+    final Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
 
     // Replace the ephemeral public key
-    SimpleKeyPair evilEphemeralKeyPair = await newKeyPair();
-    SimplePublicKey evilEphemeralPublicKey = await evilEphemeralKeyPair.extractPublicKey();
+    final SimpleKeyPair evilEphemeralKeyPair = await newKeyPair();
+    final SimplePublicKey evilEphemeralPublicKey = await evilEphemeralKeyPair.extractPublicKey();
     ciphertext.setRange(0, KeyPairType.x25519.publicKeyLength, evilEphemeralPublicKey.bytes);
 
     expect(() => decrypt(recipientKeyPair, ciphertext), throwsA(const TypeMatcher<FailedDecryption>()));
@@ -82,18 +82,18 @@ void main() {
   /// Evil nonce
   test('evil nonce', () async {
     // Generate recipient keypair
-    SimpleKeyPair recipientKeyPair = await newKeyPair();
-    SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
+    final SimpleKeyPair recipientKeyPair = await newKeyPair();
+    final SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
 
     // Generate random plaintext
-    final plaintext = Uint8List.fromList(randomBytes(256));
+    final Uint8List plaintext = Uint8List.fromList(randomBytes(256));
 
     // Encrypt
-    Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
+    final Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
 
     // Replace the nonce
-    final start = KeyPairType.x25519.publicKeyLength;
-    final end = start + Xchacha20.poly1305Aead().nonceLength;
+    final int start = KeyPairType.x25519.publicKeyLength;
+    final int end = start + Xchacha20.poly1305Aead().nonceLength;
     ciphertext.setRange(start, end, randomBytes(Xchacha20.poly1305Aead().nonceLength));
 
     expect(() => decrypt(recipientKeyPair, ciphertext), throwsA(const TypeMatcher<FailedDecryption>()));
@@ -102,18 +102,18 @@ void main() {
   /// Evil tag
   test('evil tag', () async {
     // Generate recipient keypair
-    SimpleKeyPair recipientKeyPair = await newKeyPair();
-    SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
+    final SimpleKeyPair recipientKeyPair = await newKeyPair();
+    final SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
 
     // Generate random plaintext
-    final plaintext = Uint8List.fromList(randomBytes(256));
+    final Uint8List plaintext = Uint8List.fromList(randomBytes(256));
 
     // Encrypt
-    Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
+    final Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
 
     // Replace the tag
-    final start = KeyPairType.x25519.publicKeyLength + Xchacha20.poly1305Aead().nonceLength;
-    final end = start + Poly1305().macLength;
+    final int start = KeyPairType.x25519.publicKeyLength + Xchacha20.poly1305Aead().nonceLength;
+    final int end = start + Poly1305().macLength;
     ciphertext.setRange(start, end, randomBytes(Poly1305().macLength));
 
     expect(() => decrypt(recipientKeyPair, ciphertext), throwsA(const TypeMatcher<FailedDecryption>()));
@@ -122,18 +122,18 @@ void main() {
   /// Evil ciphertext
   test('evil ciphertext', () async {
     // Generate recipient keypair
-    SimpleKeyPair recipientKeyPair = await newKeyPair();
-    SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
+    final SimpleKeyPair recipientKeyPair = await newKeyPair();
+    final SimplePublicKey recipientPublicKey = await recipientKeyPair.extractPublicKey();
 
     // Generate random plaintext
-    final plaintext = Uint8List.fromList(randomBytes(256));
+    final Uint8List plaintext = Uint8List.fromList(randomBytes(256));
 
     // Encrypt
-    Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
+    final Uint8List ciphertext = await encrypt(recipientPublicKey, plaintext);
 
     // Replace the ciphertext
-    final start = KeyPairType.x25519.publicKeyLength + Xchacha20.poly1305Aead().nonceLength + Poly1305().macLength;
-    final end = ciphertext.length;
+    final int start = KeyPairType.x25519.publicKeyLength + Xchacha20.poly1305Aead().nonceLength + Poly1305().macLength;
+    final int end = ciphertext.length;
     ciphertext.setRange(start, end, randomBytes(end - start));
 
     expect(() => decrypt(recipientKeyPair, ciphertext), throwsA(const TypeMatcher<FailedDecryption>()));
