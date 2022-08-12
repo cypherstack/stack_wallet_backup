@@ -13,6 +13,10 @@ Uint8List randomBytes(int size) {
 }
 
 void main() {
+  ///
+  /// Version-independent tests
+  /// 
+
   /// All version numbers are valid
   test('version numbers are valid', () {
     // Sanity checks; versions cannot repeat and must fit in a single byte
@@ -37,7 +41,7 @@ void main() {
     final Tuple2<PackageData, Uint8List> raw = await encryptRawWithPassphrase(passphrase, plaintextBytes);
     final PackageData data = raw.item1;
 
-    // Check tthe version is the most recent
+    // Check that the version is the most recent
     expect(data.parameters.version, getAllVersions().map((item) => item.version).reduce(max));
   });
 
@@ -64,6 +68,9 @@ void main() {
     expect(() => decryptWithPassphrase(passphrase, blob), throwsA(const TypeMatcher<BadProtocolVersion>()));
   });
 
+  ///
+  /// Version-dependent tests
+  /// 
   for (int version in getAllVersions().map((item) => item.version)) {
     /// Correct encryption and decryption succeeds with passphrase (manual backup)
     test('success, passphrase, version $version', () async {
@@ -76,12 +83,9 @@ void main() {
       // Encrypt
       final Uint8List blob = await encryptWithPassphrase(passphrase, plaintextBytes, version: version);
 
-      // Decrypt
+      // Decrypt, convert, and check correctness
       final Uint8List decryptedBytes = await decryptWithPassphrase(passphrase, blob);
-
-      // Convert ciphertext
       final String decrypted = utf8.decode(decryptedBytes);
-
       expect(decrypted, plaintext);
     });
 
@@ -148,6 +152,61 @@ void main() {
 
       // Decrypt with an evil ADK
       expect(() => decryptWithAdk(evilAdk, blob), throwsA(const TypeMatcher<FailedDecryption>()));
+    });
+
+    // Unlinkability under identical passphrase
+    test('unlinkability, passphrase, version $version', () async {
+      const String passphrase = 'passphrase';
+      const String plaintext = 'A secret message to be encrypted';
+
+      // Convert plaintext
+      final Uint8List plaintextBytes = Uint8List.fromList(utf8.encode(plaintext));
+
+      // Encrypt twice to simulate multiple backups; we even use the same plaintext!
+      final Tuple2<PackageData, Uint8List> raw = await encryptRawWithPassphrase(passphrase, plaintextBytes, version: version);
+      final PackageData data = raw.item1;
+      final Uint8List checksum = raw.item2;
+
+      final Tuple2<PackageData, Uint8List> otherRaw = await encryptRawWithPassphrase(passphrase, plaintextBytes, version: version);
+      final PackageData otherData = otherRaw.item1;
+      final Uint8List otherChecksum = otherRaw.item2;
+
+      // Ensure that each non-version component of the data is distinct across backups, to assert no obvious linkability
+      expect(data.parameters.version, otherData.parameters.version);
+      expect(data.pbkdfSalt, isNot(equals(otherData.pbkdfSalt)));
+      expect(data.aeadNonce, isNot(equals(otherData.aeadNonce)));
+      expect(data.aeadTag, isNot(equals(otherData.aeadTag)));
+      expect(data.ciphertext, isNot(equals(otherData.ciphertext)));
+      expect(checksum, isNot(equals(otherChecksum)));
+    });
+
+    // Unlinkability under identical ADK
+    test('unlinkability, adk, version $version', () async {
+      const String passphrase = 'passphrase';
+      const String plaintext = 'A secret message to be encrypted';
+
+      // Convert plaintext
+      final Uint8List plaintextBytes = Uint8List.fromList(utf8.encode(plaintext));
+
+      // Compute ADK
+      final Uint8List adk = await generateAdk(passphrase);
+
+      // Encrypt twice to simulate multiple backups; we even use the same plaintext!
+      final Tuple2<PackageData, Uint8List> raw = await encryptRawWithAdk(adk, plaintextBytes, version: version);
+      final PackageData data = raw.item1;
+      final Uint8List checksum = raw.item2;
+
+      final Tuple2<PackageData, Uint8List> otherRaw = await encryptRawWithAdk(adk, plaintextBytes, version: version);
+      final PackageData otherData = otherRaw.item1;
+      final Uint8List otherChecksum = otherRaw.item2;
+
+      // Ensure that each non-version component of the data is distinct across backups, to assert no obvious linkability
+      expect(data.parameters.version, otherData.parameters.version);
+      expect(data.pbkdfSalt, isNot(equals(otherData.pbkdfSalt)));
+      expect(data.aeadNonce, isNot(equals(otherData.aeadNonce)));
+      expect(data.aeadTag, isNot(equals(otherData.aeadTag)));
+      expect(data.ciphertext, isNot(equals(otherData.ciphertext)));
+      expect(checksum, isNot(equals(otherChecksum)));
     });
 
     /// Evil version
