@@ -98,7 +98,9 @@ void main() {
       final Uint8List plaintextBytes = Uint8List.fromList(utf8.encode(plaintext));
 
       // Compute ADK (this would be stored in the device enclave and, if needed, later retrived for decryption)
-      final Uint8List adk = await generateAdk(passphrase);
+      // NOTE: The ADK will differ between protocol versions, so the version should be stored with it
+      final Tuple2<int, Uint8List> adkData = await generateAdk(passphrase);
+      Uint8List adk = adkData.item2;
 
       // Encrypt
       final Uint8List blob = await encryptWithAdk(adk, plaintextBytes, version: version);
@@ -142,13 +144,15 @@ void main() {
       final Uint8List plaintextBytes = Uint8List.fromList(utf8.encode(plaintext));
 
       // Compute ADK
-      final Uint8List adk = await generateAdk(passphrase);
+      final Tuple2<int, Uint8List> adkData = await generateAdk(passphrase);
+      Uint8List adk = adkData.item2;
 
       // Encrypt
       final Uint8List blob = await encryptWithAdk(adk, plaintextBytes, version: version);
 
       // Compute evil ADK
-      final Uint8List evilAdk = await generateAdk(evilPassphrase);
+      final Tuple2<int, Uint8List> evilAdkData = await generateAdk(evilPassphrase);
+      Uint8List evilAdk = evilAdkData.item2;
 
       // Decrypt with an evil ADK
       expect(() => decryptWithAdk(evilAdk, blob), throwsA(const TypeMatcher<FailedDecryption>()));
@@ -189,7 +193,8 @@ void main() {
       final Uint8List plaintextBytes = Uint8List.fromList(utf8.encode(plaintext));
 
       // Compute ADK
-      final Uint8List adk = await generateAdk(passphrase);
+      final Tuple2<int, Uint8List> adkData = await generateAdk(passphrase);
+      Uint8List adk = adkData.item2;
 
       // Encrypt twice to simulate multiple backups; we even use the same plaintext!
       final Tuple2<PackageData, Uint8List> raw = await encryptRawWithAdk(adk, plaintextBytes, version: version);

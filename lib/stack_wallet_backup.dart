@@ -286,12 +286,14 @@ Future<Uint8List> _blake2b(PackageData data, String aad) async {
 //
 
 /// Generate an ADK from a passphrase for enclave storage
-Future<Uint8List> generateAdk(String passphrase, {int? version}) async {
+/// NOTE: Because we use version-specific key derivation, we return the version for storage purposes
+Future<Tuple2<int, Uint8List>> generateAdk(String passphrase, {int? version}) async {
   // Get version parameters; this can fail
   final VersionParameters parameters = getVersion(version);
 
   // Use the PBKDF to derive an ADK from the passphrase
-  return await parameters.adkPbkdf(Uint8List.fromList(utf8.encode(passphrase)));
+  Uint8List adk = await parameters.adkPbkdf(Uint8List.fromList(utf8.encode(passphrase)));
+  return Tuple2<int, Uint8List>(parameters.version, adk);
 }
 
 /// Encrypt data with a passphrase and return the raw data structure and checksum (useful for testing)
