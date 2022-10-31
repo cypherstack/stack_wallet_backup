@@ -51,6 +51,7 @@ import 'package:cryptography/cryptography.dart';
 const int owaspRecommendedPbkdf2Sha512Iterations = 120000; // OWASP recommendation: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2
 const int pbkdf2SaltLength = 16; // in bytes
 const String dataKeyDomain = 'STACK_WALLET_DATA_KEY';
+const String encryptionDomain = 'STACK_WALLET_ENCRYPTION';
 
 /// 
 /// Errors
@@ -198,11 +199,13 @@ class StorageCryptoHandler {
     }
 
     // Bind the field name as associated data
+    Uint8List domain = Uint8List.fromList(<int>[encryptionDomain.length] + _stringToBytes(encryptionDomain) + _stringToBytes(name));
+
     final SecretBox encryptedValue = await _xChaCha20Poly1305Encrypt(
       _dataKey,
       _randomBytes(Xchacha20.poly1305Aead().nonceLength),
       paddedValue,
-      _stringToBytes(name),
+      domain,
     );
 
     return encryptedValue.concatenation();
@@ -210,6 +213,8 @@ class StorageCryptoHandler {
 
   /// Decrypt a value and return it, which _must not_ be stored
   Future<Uint8List> decryptValue(String name, Uint8List encryptedValue) async {
+    Uint8List domain = Uint8List.fromList(<int>[encryptionDomain.length] + _stringToBytes(encryptionDomain) + _stringToBytes(name));
+
     try {
       // Bind the field name as associated data
       final Uint8List paddedValue = await _xChaCha20Poly1305Decrypt(
@@ -219,7 +224,7 @@ class StorageCryptoHandler {
           nonceLength: Xchacha20.poly1305Aead().nonceLength,
           macLength: Poly1305().macLength
         ),
-        _stringToBytes(name),
+        domain,
       );
 
       // We must have at least the padding flag
