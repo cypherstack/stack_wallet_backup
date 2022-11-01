@@ -4,12 +4,22 @@
 /// On other platforms, data is opportunistically secured with only some protections.
 /// To address this garbage fire, we can use a user-supplied passphrase to add a layer of security.
 /// 
+/// The overall idea is that we take name/value pairs and encrypt the values, binding them to names.
+/// The key used for this encryption is itself encrypted with a key derived from the passphrase.
+/// This allows us flexibility to change the passphrase without needing to encrypt all values again.
+/// 
+/// The basic cryptographic building blocks we use are:
+/// - a password-based key derivation function (PBKDF)
+/// - an authenticated encryption with associated data (AEAD) construction
+/// 
+/// Here's how it works.
+/// 
 /// When the user creates a passphrase, we do the following:
-/// - Generate a random PBKDF salt and store it in the device's secure storage
-/// - Run the salt and passphrase through a PBKDF to derive an AEAD key, the _main key_
+/// - Generate a random PBKDF salt
+/// - Run the salt and passphrase through the PBKDF to derive an AEAD key, the _main key_
 /// - Generate a random AEAD key, the _data key_
 /// - Use the main key to encrypt the data key with the AEAD
-/// - Encode the salt and encrypted data key to a Base64 string as the _key blob_
+/// - Encode the salt and encrypted data key to a Base64 string, the _key blob_
 /// - Store the key blob in the device's secure storage
 /// 
 /// When we need to check a user-supplied passphrase for correctness, we do the following:
@@ -19,25 +29,26 @@
 /// - Use the candidate main key to authenticate and decrypt the encrypted data key, and return success or an error
 /// 
 /// When we then need to write a field name/value pair to the device's secure storage, we do the following:
-/// - Use the data key to encrypt the value with the AEAD, with the name as associated data
+/// - Use the data key to encrypt the value with the AEAD, binding it to the name
 /// - Encode the encrypted value to a Base64 string
 /// - Return the encoded encrypted value, which is safe to be written to the device's secure storage
 /// It's also possible to pad the value to a multiple of a base length, which reduces information available to an adversary.
 /// 
 /// When we then need to read a field name/value pair from the device's secure storage, we do the following:
-/// - Decode the encrypted value to bytes
-/// - Use the data key to decrypt the value with the AEAD, with the name as associated data
-/// - Return the decrypted value on success, or an error otherwise
+/// - Fetch the name and encoded encrypted value from the device's secure storage
+/// - Decode the encoded encrypted value to bytes
+/// - Use the data key to decrypt the encrypted value with the AEAD
+/// - Return the value on success, or an error otherwise
+/// If the original value was padded, we remove the padding.
 /// 
-/// The use of a stored encrypted data key is to faciliate password changes without needing to encrypt data again.
+/// The use of a stored key blob is to faciliate password changes without needing to encrypt data again.
 /// When the user wishes to change their passphrase, we do the following:
-/// - Generate a random salt and overwrite the existing one in the device's secure storage
+/// - Generate a random PBKDF salt
 /// - Run the salt and passphrase through the PBKDF to derive a new main key
 /// - Use the main key to encrypt the data key with the AEAD
-/// - Encode the salt and encrypted data key to a Base64 string as the key blob
+/// - Encode the salt and encrypted data key to a Base64 string, the new key blob
 /// - Overwrite the existing key blob in the device's secure storage
 /// Note that the existing data key is unchanged, so all encrypted name/value pairs are still accessible.
-/// This process should be done as atomically as possible, or data loss may occur.
 /// 
 /// This library is intended to safely abstract this functionality.
 /// In particular, it only exposes data that is safe to be passed to the device's secure storage.

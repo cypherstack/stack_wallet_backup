@@ -12,6 +12,19 @@ Uint8List _randomBytes(int n) {
   return Uint8List.fromList(List<int>.generate(n, (_) => rng.nextInt(0xFF + 1)));
 }
 
+/// Generate cryptographically-secure random Base64 string
+String _randomBase64(int n) {
+  const String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  
+  Random rng = Random.secure();
+  String result = '';
+  for (int i = 0; i < n; i++) {
+    result += alphabet[rng.nextInt(alphabet.length)];
+  }
+
+  return result;
+}
+
 const int saltLength = 16; // must match the library's value, which is private
 
 void main() {
@@ -22,8 +35,8 @@ void main() {
     StorageCryptoHandler handler = await StorageCryptoHandler.fromNewPassphrase(passphrase);
 
     // Fetch the key blob
-    // We should then store it in the device's secure storage
-    // WARNING: Make sure you don't accidentally overwrite this with a later name/value pair!
+    // We would then store it in the device's secure storage
+    // WARNING: Make sure you don't accidentally overwrite this with another name/value pair!
     final String keyBlob = await handler.getKeyBlob();
 
     // Prepare name/value data for padded encryption
@@ -31,9 +44,10 @@ void main() {
     String name = 'secret_data_that_should_be_padded';
     String value = 'the secret data to pad';
 
-    // Encrypt the value, padding to the next multiple of (arbitrarily) 64 bytes
-    // We could then store `(name, encryptedValue)` in the device's secure storage
-    String encryptedValue = await handler.encryptValue(name, value, padding: 64);
+    // Encrypt the value, padding to the next multiple of an arbitrary base length
+    // We would then store `(name, encryptedValue)` in the device's secure storage
+    const int padding = 64; // in bytes
+    String encryptedValue = await handler.encryptValue(name, value, padding: padding);
 
     // Decrypt the value, removing the padding automatically
     // We would have retrieved `(name, encryptedValue)` from the device's secure storage
@@ -48,13 +62,12 @@ void main() {
     expect(decryptedValue, value);
 
     // Handle the case where the data was manipulated by an adversary
-    final String evilEncryptedValue = 'deadbeef' + encryptedValue; // ignore: prefer_interpolation_to_compose_strings
+    final String evilEncryptedValue = _randomBase64(encryptedValue.length);
     expect(() => handler.decryptValue(name, evilEncryptedValue), throwsA(const TypeMatcher<BadDecryption>()));
 
     // Now suppose we want to create a storage handler where the user already has a passphrase and stored data
     // We would have retrived the key blob from the device's secure storage
-    const correctPassphrase = 'test';
-    handler = await StorageCryptoHandler.fromExisting(correctPassphrase, keyBlob);
+    handler = await StorageCryptoHandler.fromExisting(passphrase, keyBlob);
 
     // Now we can decrypt as usual
     decryptedValue = await handler.decryptValue(name, encryptedValue);
@@ -83,11 +96,13 @@ void main() {
 
     // Test padding
     const int padding = 64;
-    for (int i = 1; i <= 2 * padding + 1; i++) {
-      const String name = 'foo';
-      final Uint8List valueBytes = Uint8List.fromList(List<int>.filled(i, 0x01)); // needs to be valid UTF-8
+    const String name = 'field name';
+    const String value = 'yay padding';
 
-      String encryptedValue = await handler.encryptValue(name, utf8.decode(valueBytes), padding: padding);
+    for (int i = 1; i <= 2 * padding + 1; i++) {
+      String encryptedValue = await handler.encryptValue(name, value, padding: padding);
+
+      // Assert the padding is correct
       int paddedBytesLength = 
         base64.decode(encryptedValue).length
         - 1 // padding flag
@@ -95,6 +110,10 @@ void main() {
         - Xchacha20.poly1305Aead().nonceLength
         - Poly1305().macLength;
       expect(paddedBytesLength % padding, 0);
+
+      // Assert that we recover the unpadded value
+      final decryptedValue = await handler.decryptValue(name, encryptedValue);
+      expect(decryptedValue, value);
     }
   });
 
