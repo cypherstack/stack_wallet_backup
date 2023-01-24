@@ -52,12 +52,29 @@ List<VersionParameters> getAllVersions() {
   // Version 1 uses PBKDF2, XChaCha20-Poly1305, and Blake2b
   version = 1;
   aad = protocol + version.toString();
-  const int owaspRecommendedPbkdf2Sha512Iterations = 120000; // OWASP recommendation: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2
+  const int owaspRecommendedPbkdf2Sha512IterationsVersion1 = 120000; // OWASP recommendation: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2
   const int pbkdf2SaltLength = 16; // Take that, rainbow tables!
   versions.add(VersionParameters(
     version,
-    (passphrase) => _pbkdf2(passphrase, Uint8List.fromList(utf8.encode(aad)), Hmac.sha512(), owaspRecommendedPbkdf2Sha512Iterations, Xchacha20.poly1305Aead().secretKeyLength),
-    (adk, salt) => _pbkdf2(adk, salt, Hmac.sha512(), owaspRecommendedPbkdf2Sha512Iterations, Xchacha20.poly1305Aead().secretKeyLength),
+    (passphrase) => _pbkdf2(passphrase, Uint8List.fromList(utf8.encode(aad)), Hmac.sha512(), owaspRecommendedPbkdf2Sha512IterationsVersion1, Xchacha20.poly1305Aead().secretKeyLength),
+    (adk, salt) => _pbkdf2(adk, salt, Hmac.sha512(), owaspRecommendedPbkdf2Sha512IterationsVersion1, Xchacha20.poly1305Aead().secretKeyLength),
+    (key, nonce, plaintext) => _xChaCha20Poly1305Encrypt(key, nonce, plaintext, aad),
+    (key, blob) => _xChaCha20Poly1305Decrypt(key, blob, aad),
+    (data) => _blake2b(data, aad),
+    pbkdf2SaltLength,
+    Xchacha20.poly1305Aead().nonceLength,
+    Poly1305().macLength,
+    Blake2b().hashLengthInBytes 
+  ));
+
+  // Version 2 uses PBKDF2, XChaCha20-Poly1305, and Blake2b
+  version = 2;
+  aad = protocol + version.toString();
+  const int owaspRecommendedPbkdf2Sha512IterationsVersion2 = 210000; // OWASP recommendation: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2
+  versions.add(VersionParameters(
+    version,
+    (passphrase) => _pbkdf2(passphrase, Uint8List.fromList(utf8.encode(aad)), Hmac.sha512(), owaspRecommendedPbkdf2Sha512IterationsVersion2, Xchacha20.poly1305Aead().secretKeyLength),
+    (adk, salt) => _pbkdf2(adk, salt, Hmac.sha512(), owaspRecommendedPbkdf2Sha512IterationsVersion2, Xchacha20.poly1305Aead().secretKeyLength),
     (key, nonce, plaintext) => _xChaCha20Poly1305Encrypt(key, nonce, plaintext, aad),
     (key, blob) => _xChaCha20Poly1305Decrypt(key, blob, aad),
     (data) => _blake2b(data, aad),
