@@ -65,8 +65,20 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 
+/// Get the PBKDF iterations for this version
+/// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2
+int getPbkdfIterations(int version) {
+  switch (version) {
+    case 1:
+      return 120000;
+    case 2:
+      return 210000;
+    default:
+      throw VersionError();
+  }
+}
+
 /// Constants that should not be changed without good reason
-const int pbkdfIterations = 120000; // OWASP recommendation: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2
 const int saltLength = 16; // in bytes
 const String dataKeyDomain = 'STACK_WALLET_DATA_KEY';
 const String encryptionDomain = 'STACK_WALLET_ENCRYPTION';
@@ -76,7 +88,7 @@ const String encryptionDomain = 'STACK_WALLET_ENCRYPTION';
 /// 
 
 /// The provided passphrase is incorrect
-class IncorrectPassphrase implements Exception {
+class IncorrectPassphraseOrVersion implements Exception {
   String errMsg() => 'Incorrect passphrase';
 }
 
@@ -95,6 +107,11 @@ class EncodingError implements Exception {
   String errMsg() => 'There was an encoding error';
 }
 
+/// Version is invalid
+class VersionError implements Exception {
+  String errMsg() => 'Bad version';
+}
+
 /// 
 /// StorageCryptoHandler
 /// 
@@ -108,12 +125,12 @@ class StorageCryptoHandler {
   StorageCryptoHandler._(this._salt, this._mainKey, this._dataKey);
 
   /// Create a new handler
-  static Future<StorageCryptoHandler> fromNewPassphrase(String passphrase) async {
+  static Future<StorageCryptoHandler> fromNewPassphrase(String passphrase, int version) async {
     // Generate a random salt
     final salt = _randomBytes(saltLength);
 
     // Use the passphrase and salt to derive the main key with the PBKDF
-    final mainKey = await _pbkdf2(salt, _stringToBytes(passphrase));
+    final mainKey = await _pbkdf2(salt, _stringToBytes(passphrase), version);
 
     // Generate a random data key
     final dataKey = _randomBytes(Xchacha20.poly1305Aead().secretKeyLength);
@@ -122,8 +139,8 @@ class StorageCryptoHandler {
     return StorageCryptoHandler._(salt, mainKey, dataKey);
   }
 
-  /// Create a handler from an existing passphrase and key blob
-  static Future<StorageCryptoHandler> fromExisting(String passphrase, String keyBlob) async {
+  /// Create a handler from an existing passphrase and key blob with a specified version
+  static Future<StorageCryptoHandler> fromExisting(String passphrase, String keyBlob, int version) async {
     // Decode the encrypted data key
     Uint8List keyBlobBytes = _stringToBytesBase64(keyBlob);
     if (keyBlobBytes.length != saltLength + Xchacha20.poly1305Aead().nonceLength + Xchacha20.poly1305Aead().secretKeyLength + Poly1305().macLength) {
@@ -134,7 +151,7 @@ class StorageCryptoHandler {
     Uint8List encryptedDataKey = keyBlobBytes.sublist(saltLength);
 
     // Derive the candidate main key
-    final Uint8List mainKey = await _pbkdf2(salt, _stringToBytes(passphrase));
+    final Uint8List mainKey = await _pbkdf2(salt, _stringToBytes(passphrase), version);
 
     // Determine if the main key is valid against the encrypted data key
     try {
@@ -156,17 +173,17 @@ class StorageCryptoHandler {
       // Assemble the handler
       return StorageCryptoHandler._(salt, mainKey, dataKey);
     } on BadDecryption {
-      throw IncorrectPassphrase();
+      throw IncorrectPassphraseOrVersion();
     }
   }
 
   /// Reset the passphrase, which resets the salt and main key
-  Future<void> resetPassphrase(String passphrase) async {
+  Future<void> resetPassphrase(String passphrase, version) async {
     // Generate a random salt
     _salt = _randomBytes(saltLength);
 
     // Use the passphrase and salt to derive the main key with the PBKDF
-    _mainKey = await _pbkdf2(_salt, _stringToBytes(passphrase));
+    _mainKey = await _pbkdf2(_salt, _stringToBytes(passphrase), version);
   }
 
   /// Get the key blob, which is safe to store
@@ -322,11 +339,11 @@ Uint8List _stringToBytesBase64(String data) {
 }
 
 /// PBKDF2/SHA-512
-Future<Uint8List> _pbkdf2(Uint8List salt, Uint8List passphrase) async {
+Future<Uint8List> _pbkdf2(Uint8List salt, Uint8List passphrase, int version) async {
   // Set up the PBKDF
   final Pbkdf2 pbkdf = Pbkdf2(
     macAlgorithm: Hmac.sha512(),
-    iterations: pbkdfIterations,
+    iterations: getPbkdfIterations(version),
     bits: Xchacha20.poly1305Aead().secretKeyLength * 8, // bytes to bits
   );
 
