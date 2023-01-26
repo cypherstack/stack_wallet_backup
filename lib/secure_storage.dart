@@ -178,7 +178,7 @@ class StorageCryptoHandler {
   }
 
   /// Reset the passphrase, which resets the salt and main key
-  Future<void> resetPassphrase(String passphrase, version) async {
+  Future<void> resetPassphrase(String passphrase, int version) async {
     // Generate a random salt
     _salt = _randomBytes(saltLength);
 
