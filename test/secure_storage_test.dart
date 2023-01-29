@@ -29,30 +29,37 @@ const int saltLength = 16; // must match the library's value, which is private
 
 void main() {
   /// Version-independent operations
-  test ('upgrade, version 1 to 2', () async {
-    // Create a storage handler with version 1
-    const String passphrase = 'test';
-    StorageCryptoHandler handler = await StorageCryptoHandler.fromNewPassphrase(passphrase, 1);
+  for (int oldVersion in getVersions()) {
+    for (int newVersion in getVersions()) {
+      if (oldVersion >= newVersion) {
+        continue;
+      }
+        test ('upgrade, version $oldVersion to $newVersion', () async {
+          // Create a storage handler with the old version
+          const String passphrase = 'test';
+          StorageCryptoHandler handler = await StorageCryptoHandler.fromNewPassphrase(passphrase, oldVersion);
 
-    // Encrypt some data
-    const String name = 'secret_data_that_should_not_be_padded';
-    const value = 'the secret data not to pad';
-    final String encryptedValue = await handler.encryptValue(name, value);
+          // Encrypt some data
+          const String name = 'secret_data_that_should_not_be_padded';
+          const value = 'the secret data not to pad';
+          final String encryptedValue = await handler.encryptValue(name, value);
 
-    // Upgrade to version 2 (in this case, using the same passphrase) and get the new key blob
-    await handler.resetPassphrase(passphrase, 2);
-    final String keyBlob = await handler.getKeyBlob();
+          // Upgrade to the new version (in this case, using the same passphrase) and get the new key blob
+          await handler.resetPassphrase(passphrase, newVersion);
+          final String keyBlob = await handler.getKeyBlob();
 
-    // Now we can recover the handler with the new passphrase
-    handler = await StorageCryptoHandler.fromExisting(passphrase, keyBlob, 2);
+          // Now we can recover the handler with the new passphrase
+          handler = await StorageCryptoHandler.fromExisting(passphrase, keyBlob, newVersion);
 
-    // Confirm that decryption works as expected
-    final String decryptedValue = await handler.decryptValue(name, encryptedValue);
-    expect(decryptedValue, value);
-  });
+          // Confirm that decryption works as expected
+          final String decryptedValue = await handler.decryptValue(name, encryptedValue);
+          expect(decryptedValue, value);
+        });
+    }
+  }
 
   /// Run with each known version
-  for (int version in [1, 2]) {
+  for (int version in getVersions()) {
     /// Version-specific operations
     test('examples, version $version', () async {
       // Create a storage handler from a new passphrase
@@ -174,7 +181,7 @@ void main() {
       expect(() => StorageCryptoHandler.fromExisting(passphrase, evilKeyBlob, version), throwsA(const TypeMatcher<IncorrectPassphraseOrVersion>()));
 
       // Evil version
-      for (int evilVersion in [1, 2]) {
+      for (int evilVersion in getVersions()) {
         if (evilVersion == version) {
           continue;
         }
