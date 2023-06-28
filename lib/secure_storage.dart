@@ -112,6 +112,11 @@ class VersionError implements Exception {
   String errMsg() => 'Bad version';
 }
 
+/// Padding flag is invalid
+class InvalidPadding implements Exception {
+  String errMsg() => 'Padding flag is invalid';
+}
+
 /// 
 /// StorageCryptoHandler
 /// 
@@ -279,7 +284,7 @@ class StorageCryptoHandler {
 
       // The padding flag is invalid, which should never happen
       if (paddedValue[0] != 0x01) {
-        throw BadDecryption();
+        throw InvalidPadding();
       }
 
       // Extract the value length
