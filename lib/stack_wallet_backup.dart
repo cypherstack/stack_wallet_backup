@@ -29,6 +29,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:argon2/argon2.dart';
 import 'package:collection/collection.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:tuple/tuple.dart';
@@ -79,6 +80,24 @@ List<VersionParameters> getAllVersions() {
     (key, blob) => _xChaCha20Poly1305Decrypt(key, blob, aad),
     (data) => _blake2b(data, aad),
     pbkdf2SaltLength,
+    Xchacha20.poly1305Aead().nonceLength,
+    Poly1305().macLength,
+    Blake2b().hashLengthInBytes 
+  ));
+
+  // Version 3 uses Argon2id, XChaCha20-Poly1305, and Blake2b
+  version = 3;
+  aad = protocol + version.toString();
+  const int owaspRecommendedArgon2idMemoryVersion3 = 47104; // OWASP recommendation: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
+  const int argon2idSaltLength = 16; // Take that, rainbow tables!
+  versions.add(VersionParameters(
+    version,
+    (passphrase) => _argon2id(passphrase, Uint8List.fromList(utf8.encode(aad)), owaspRecommendedArgon2idMemoryVersion3, Xchacha20.poly1305Aead().secretKeyLength),
+    (adk, salt) => _argon2id(adk, salt, owaspRecommendedArgon2idMemoryVersion3, Xchacha20.poly1305Aead().secretKeyLength),
+    (key, nonce, plaintext) => _xChaCha20Poly1305Encrypt(key, nonce, plaintext, aad),
+    (key, blob) => _xChaCha20Poly1305Decrypt(key, blob, aad),
+    (data) => _blake2b(data, aad),
+    argon2idSaltLength,
     Xchacha20.poly1305Aead().nonceLength,
     Poly1305().macLength,
     Blake2b().hashLengthInBytes 
@@ -237,6 +256,25 @@ Future<Uint8List> _pbkdf2(Uint8List passphrase, Uint8List salt, MacAlgorithm mac
   final List<int> derivedKeyBytes = await derivedKey.extractBytes();
 
   return Uint8List.fromList(derivedKeyBytes);
+}
+
+/// Argon2id
+Future<Uint8List> _argon2id(Uint8List passphrase, Uint8List salt, int memory, int derivedKeyLength) async {
+  final parameters = Argon2Parameters(
+    Argon2Parameters.ARGON2_id,
+    salt,
+    version: Argon2Parameters.ARGON2_VERSION_13,
+    iterations: 1,
+    lanes: 1,
+    memory: memory,
+  );
+  final Argon2BytesGenerator argon2 = Argon2BytesGenerator();
+  argon2.init(parameters);
+
+  var derivedKeyBytes = Uint8List(derivedKeyLength);
+  argon2.generateBytes(passphrase, derivedKeyBytes);
+
+  return derivedKeyBytes;
 }
 
 //
