@@ -63,7 +63,13 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:argon2/argon2.dart';
 import 'package:cryptography/cryptography.dart';
+
+/// Return a list of all known versions
+List<int> getVersions() {
+  return [1, 2, 3];
+}
 
 /// Get the PBKDF iterations for this version
 /// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2
@@ -73,6 +79,17 @@ int getPbkdfIterations(int version) {
       return 120000;
     case 2:
       return 210000;
+    default:
+      throw VersionError();
+  }
+}
+
+/// Get the Argon2id memory parameter for this version
+/// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
+int getArgon2Memory(int version) {
+  switch (version) {
+    case 3:
+      return 47104;
     default:
       throw VersionError();
   }
@@ -135,7 +152,14 @@ class StorageCryptoHandler {
     final salt = _randomBytes(saltLength);
 
     // Use the passphrase and salt to derive the main key with the PBKDF
-    final mainKey = await _pbkdf2(salt, _stringToBytes(passphrase), version);
+    Uint8List mainKey = Uint8List(Xchacha20.poly1305Aead().secretKeyLength);
+    if (version == 1 || version == 2) {
+      mainKey = await _pbkdf2(salt, _stringToBytes(passphrase), version);
+    } else if (version == 3) {
+      mainKey = await _argon2id(salt, _stringToBytes(passphrase), version);
+    } else {
+      throw VersionError();
+    }
 
     // Generate a random data key
     final dataKey = _randomBytes(Xchacha20.poly1305Aead().secretKeyLength);
@@ -156,7 +180,14 @@ class StorageCryptoHandler {
     Uint8List encryptedDataKey = keyBlobBytes.sublist(saltLength);
 
     // Derive the candidate main key
-    final Uint8List mainKey = await _pbkdf2(salt, _stringToBytes(passphrase), version);
+    Uint8List mainKey = Uint8List(Xchacha20.poly1305Aead().secretKeyLength);
+    if (version == 1 || version == 2) {
+      mainKey = await _pbkdf2(salt, _stringToBytes(passphrase), version);
+    } else if (version == 3) {
+      mainKey = await _argon2id(salt, _stringToBytes(passphrase), version);
+    } else {
+      throw VersionError();
+    }
 
     // Determine if the main key is valid against the encrypted data key
     try {
@@ -188,7 +219,13 @@ class StorageCryptoHandler {
     _salt = _randomBytes(saltLength);
 
     // Use the passphrase and salt to derive the main key with the PBKDF
-    _mainKey = await _pbkdf2(_salt, _stringToBytes(passphrase), version);
+    if (version == 1 || version == 2) {
+      _mainKey = await _pbkdf2(_salt, _stringToBytes(passphrase), version);
+    } else if (version == 3) {
+      _mainKey = await _argon2id(_salt, _stringToBytes(passphrase), version);
+    } else {
+      throw VersionError();
+    }
   }
 
   /// Get the key blob, which is safe to store
@@ -360,6 +397,25 @@ Future<Uint8List> _pbkdf2(Uint8List salt, Uint8List passphrase, int version) asy
   final List<int> mainKeyBytes = await mainKey.extractBytes();
 
   return Uint8List.fromList(mainKeyBytes);
+}
+
+/// Argon2id
+Future<Uint8List> _argon2id(Uint8List salt, Uint8List passphrase, int version) async {
+  final parameters = Argon2Parameters(
+    Argon2Parameters.ARGON2_id,
+    salt,
+    version: Argon2Parameters.ARGON2_VERSION_13,
+    iterations: 1,
+    lanes: 1,
+    memory: getArgon2Memory(version),
+  );
+  final Argon2BytesGenerator argon2 = Argon2BytesGenerator();
+  argon2.init(parameters);
+
+  var derivedKeyBytes = Uint8List(Xchacha20.poly1305Aead().secretKeyLength);
+  argon2.generateBytes(passphrase, derivedKeyBytes);
+
+  return derivedKeyBytes;
 }
 
 /// XChaCha20-Poly1305 encryption
