@@ -1,6 +1,6 @@
 name: stack_wallet_backup
 description: Create and restore secure encrypted backups using a passphrase.
-version: 0.0.1
+version: 0.1.0
 homepage:
 
 environment:
