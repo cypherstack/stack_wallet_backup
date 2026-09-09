@@ -2,8 +2,8 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:stack_wallet_backup/sign.dart';
+import 'package:test/test.dart';
 
 /// Utility function to generate random byte lists
 List<int> randomBytes(int size) {
@@ -41,10 +41,12 @@ void main() {
 
     // Generate wrong key pair
     final SimpleKeyPair wrongKeyPair = await newKeyPair();
-    final SimplePublicKey wrongPublicKey = await wrongKeyPair.extractPublicKey();
+    final SimplePublicKey wrongPublicKey =
+        await wrongKeyPair.extractPublicKey();
 
     // Verify
-    expect(() => verify(wrongPublicKey, message, signature), throwsA(const TypeMatcher<BadSignature>()));
+    expect(() => verify(wrongPublicKey, message, signature),
+        throwsA(const TypeMatcher<BadSignature>()));
   });
 
   // Evil message
@@ -63,7 +65,8 @@ void main() {
     final Uint8List evilMessage = Uint8List.fromList(randomBytes(256));
 
     // Verify
-    expect(() => verify(publicKey, evilMessage, signature), throwsA(const TypeMatcher<BadSignature>()));
+    expect(() => verify(publicKey, evilMessage, signature),
+        throwsA(const TypeMatcher<BadSignature>()));
   });
 
   // Evil signature
@@ -79,10 +82,12 @@ void main() {
     final Uint8List signature = await sign(keyPair, message);
 
     // Replace signature
-    final Uint8List evilSignature = Uint8List.fromList(randomBytes(signature.length));
+    final Uint8List evilSignature =
+        Uint8List.fromList(randomBytes(signature.length));
 
     // Verify
-    expect(() => verify(publicKey, message, evilSignature), throwsA(const TypeMatcher<BadSignature>()));
+    expect(() => verify(publicKey, message, evilSignature),
+        throwsA(const TypeMatcher<BadSignature>()));
   });
 
   // Bad signature length
@@ -98,9 +103,11 @@ void main() {
     final Uint8List signature = await sign(keyPair, message);
 
     // Replace signature
-    final Uint8List evilSignature = Uint8List.fromList(randomBytes(signature.length-1));
+    final Uint8List evilSignature =
+        Uint8List.fromList(randomBytes(signature.length - 1));
 
     // Verify
-    expect(() => verify(publicKey, message, evilSignature), throwsA(const TypeMatcher<BadSignature>()));
+    expect(() => verify(publicKey, message, evilSignature),
+        throwsA(const TypeMatcher<BadSignature>()));
   });
 }
