@@ -25,6 +25,7 @@
 /// The design we use here instead retains unlinkability, but at the cost of increased vulnerability to rainbow attacks on the ADK if the enclave is compromised.
 /// We note, however, that encrypted blobs are not vulnerable to rainbow attacks, since the ADK is used with a subsequent PBKDF operation using a fresh salt.
 /// The user should be advised of the risks inherent to this automated backup design.
+library;
 
 import 'dart:convert';
 import 'dart:math';

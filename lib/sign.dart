@@ -1,8 +1,10 @@
 /// This library signs data and verifies signatures.
 ///
 /// It's effectively just a safe wrapper for library primitives.
+library;
 
 import 'dart:typed_data';
+
 import 'package:cryptography/cryptography.dart';
 
 /// Bad key type
@@ -35,7 +37,8 @@ Future<Uint8List> sign(SimpleKeyPair key, Uint8List message) async {
 }
 
 /// Verify a signature
-Future<void> verify(SimplePublicKey key, Uint8List message, Uint8List signatureBytes) async {
+Future<void> verify(
+    SimplePublicKey key, Uint8List message, Uint8List signatureBytes) async {
   // Verify the key is valid for Ed25519
   if (key.type != KeyPairType.ed25519) {
     throw BadKeyType();
