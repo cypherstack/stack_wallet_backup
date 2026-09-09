@@ -1,5 +1,5 @@
 name: stack_wallet_backup
-description: A new Flutter plugin project.
+description: Create and restore secure encrypted backups using a passphrase.
 version: 0.0.1
 homepage:
 
