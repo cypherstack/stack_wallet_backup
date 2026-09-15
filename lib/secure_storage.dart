@@ -3,17 +3,17 @@
 /// On some platforms, data is cryptographically secured against snoops and other applications.
 /// On other platforms, data is opportunistically secured with only some protections.
 /// To address this garbage fire, we can use a user-supplied passphrase to add a layer of security.
-/// 
+///
 /// The overall idea is that we take name/value pairs and encrypt the values, binding them to names.
 /// The key used for this encryption is itself encrypted with a key derived from the passphrase.
 /// This allows us flexibility to change the passphrase without needing to encrypt all values again.
-/// 
+///
 /// The basic cryptographic building blocks we use are:
 /// - a password-based key derivation function (PBKDF)
 /// - an authenticated encryption with associated data (AEAD) construction
-/// 
+///
 /// Here's how it works.
-/// 
+///
 /// When the user creates a passphrase, we do the following:
 /// - Generate a random PBKDF salt
 /// - Run the salt and passphrase through the PBKDF to derive an AEAD key, the _main key_
@@ -21,26 +21,26 @@
 /// - Use the main key to encrypt the data key with the AEAD
 /// - Encode the salt and encrypted data key to a Base64 string, the _key blob_
 /// - Store the key blob in the device's secure storage
-/// 
+///
 /// When we need to check a user-supplied passphrase for correctness, we do the following:
 /// - Fetch the key blob from the device's secure storage
 /// - Decode the key blob to bytes, and parse the salt and encrypted data key
 /// - Run the salt and passphrase through the PBKDF to derive a candidate main key
 /// - Use the candidate main key to authenticate and decrypt the encrypted data key, and return success or an error
-/// 
+///
 /// When we then need to write a field name/value pair to the device's secure storage, we do the following:
 /// - Use the data key to encrypt the value with the AEAD, binding it to the name
 /// - Encode the encrypted value to a Base64 string
 /// - Return the encoded encrypted value, which is safe to be written to the device's secure storage
 /// It's also possible to pad the value to a multiple of a base length, which reduces information available to an adversary.
-/// 
+///
 /// When we then need to read a field name/value pair from the device's secure storage, we do the following:
 /// - Fetch the name and encoded encrypted value from the device's secure storage
 /// - Decode the encoded encrypted value to bytes
 /// - Use the data key to decrypt the encrypted value with the AEAD
 /// - Return the value on success, or an error otherwise
 /// If the original value was padded, we remove the padding.
-/// 
+///
 /// The use of a stored key blob is to faciliate password changes without needing to encrypt data again.
 /// When the user wishes to change their passphrase, we do the following:
 /// - Generate a random PBKDF salt
@@ -49,20 +49,22 @@
 /// - Encode the salt and encrypted data key to a Base64 string, the new key blob
 /// - Overwrite the existing key blob in the device's secure storage
 /// Note that the existing data key is unchanged, so all encrypted name/value pairs are still accessible.
-/// 
+///
 /// This library is intended to safely abstract this functionality.
 /// In particular, it only exposes data that is safe to be passed to the device's secure storage.
 /// Don't try to peek inside to extract other data; the robotic innards are not safe.
-/// 
+///
 /// WARNING!
 /// Field names are not encrypted here, since we don't have nonce-misuse-resistant AEAD functionality available to us.
 /// We could add this, but there be dragons.
 /// This is not part of our threat model anyway, but keep it in mind.
 /// Don't use this library if you need private field names.
+library;
 
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
+
 import 'package:cryptography/cryptography.dart';
 
 /// Get the PBKDF iterations for this version
@@ -83,9 +85,9 @@ const int saltLength = 16; // in bytes
 const String dataKeyDomain = 'STACK_WALLET_DATA_KEY';
 const String encryptionDomain = 'STACK_WALLET_ENCRYPTION';
 
-/// 
+///
 /// Errors
-/// 
+///
 
 /// The provided passphrase is incorrect
 class IncorrectPassphraseOrVersion implements Exception {
@@ -117,9 +119,9 @@ class InvalidPadding implements Exception {
   String errMsg() => 'Padding flag is invalid';
 }
 
-/// 
+///
 /// StorageCryptoHandler
-/// 
+///
 
 class StorageCryptoHandler {
   late Uint8List _salt; // PBKDF salt
@@ -130,7 +132,8 @@ class StorageCryptoHandler {
   StorageCryptoHandler._(this._salt, this._mainKey, this._dataKey);
 
   /// Create a new handler
-  static Future<StorageCryptoHandler> fromNewPassphrase(String passphrase, int version) async {
+  static Future<StorageCryptoHandler> fromNewPassphrase(
+      String passphrase, int version) async {
     // Generate a random salt
     final salt = _randomBytes(saltLength);
 
@@ -145,10 +148,15 @@ class StorageCryptoHandler {
   }
 
   /// Create a handler from an existing passphrase and key blob with a specified version
-  static Future<StorageCryptoHandler> fromExisting(String passphrase, String keyBlob, int version) async {
+  static Future<StorageCryptoHandler> fromExisting(
+      String passphrase, String keyBlob, int version) async {
     // Decode the encrypted data key
     Uint8List keyBlobBytes = _stringToBytesBase64(keyBlob);
-    if (keyBlobBytes.length != saltLength + Xchacha20.poly1305Aead().nonceLength + Xchacha20.poly1305Aead().secretKeyLength + Poly1305().macLength) {
+    if (keyBlobBytes.length !=
+        saltLength +
+            Xchacha20.poly1305Aead().nonceLength +
+            Xchacha20.poly1305Aead().secretKeyLength +
+            Poly1305().macLength) {
       throw InvalidLength();
     }
 
@@ -156,17 +164,16 @@ class StorageCryptoHandler {
     Uint8List encryptedDataKey = keyBlobBytes.sublist(saltLength);
 
     // Derive the candidate main key
-    final Uint8List mainKey = await _pbkdf2(salt, _stringToBytes(passphrase), version);
+    final Uint8List mainKey =
+        await _pbkdf2(salt, _stringToBytes(passphrase), version);
 
     // Determine if the main key is valid against the encrypted data key
     try {
       final Uint8List dataKey = await _xChaCha20Poly1305Decrypt(
         mainKey,
-        SecretBox.fromConcatenation(
-          encryptedDataKey,
-          nonceLength: Xchacha20.poly1305Aead().nonceLength,
-          macLength: Poly1305().macLength
-        ),
+        SecretBox.fromConcatenation(encryptedDataKey,
+            nonceLength: Xchacha20.poly1305Aead().nonceLength,
+            macLength: Poly1305().macLength),
         _stringToBytes(dataKeyDomain),
       );
 
@@ -202,7 +209,8 @@ class StorageCryptoHandler {
       _stringToBytes(dataKeyDomain),
     );
 
-    return _bytesToStringBase64(Uint8List.fromList(_salt + encryptedDataKey.concatenation()));
+    return _bytesToStringBase64(
+        Uint8List.fromList(_salt + encryptedDataKey.concatenation()));
   }
 
   /// Encrypt a value and return it, which is safe to store
@@ -230,8 +238,9 @@ class StorageCryptoHandler {
       valueBytes.addByte(0x01); // this is a padded value
       valueBytes.add(valueLengthBytes.buffer.asUint8List()); // value length
       valueBytes.add(_stringToBytes(value)); // value
-      valueBytes.add(List<int>.filled(padding - (value.length % padding), 0x00)); // padding
-      
+      valueBytes.add(List<int>.filled(
+          padding - (value.length % padding), 0x00)); // padding
+
       paddedValue = valueBytes.toBytes();
     }
     // If no padding was provided, prepend the value with 0x00
@@ -244,7 +253,9 @@ class StorageCryptoHandler {
     }
 
     // Bind the field name as associated data
-    Uint8List domain = Uint8List.fromList(<int>[encryptionDomain.length] + _stringToBytes(encryptionDomain) + _stringToBytes(name));
+    Uint8List domain = Uint8List.fromList(<int>[encryptionDomain.length] +
+        _stringToBytes(encryptionDomain) +
+        _stringToBytes(name));
 
     final SecretBox encryptedValue = await _xChaCha20Poly1305Encrypt(
       _dataKey,
@@ -258,17 +269,17 @@ class StorageCryptoHandler {
 
   /// Decrypt a value and return it, which _must not_ be stored
   Future<String> decryptValue(String name, String encryptedValue) async {
-    Uint8List domain = Uint8List.fromList(<int>[encryptionDomain.length] + _stringToBytes(encryptionDomain) + _stringToBytes(name));
+    Uint8List domain = Uint8List.fromList(<int>[encryptionDomain.length] +
+        _stringToBytes(encryptionDomain) +
+        _stringToBytes(name));
 
     try {
       // Bind the field name as associated data
       final Uint8List paddedValue = await _xChaCha20Poly1305Decrypt(
         _dataKey,
-        SecretBox.fromConcatenation(
-          _stringToBytesBase64(encryptedValue),
-          nonceLength: Xchacha20.poly1305Aead().nonceLength,
-          macLength: Poly1305().macLength
-        ),
+        SecretBox.fromConcatenation(_stringToBytesBase64(encryptedValue),
+            nonceLength: Xchacha20.poly1305Aead().nonceLength,
+            macLength: Poly1305().macLength),
         domain,
       );
 
@@ -291,7 +302,9 @@ class StorageCryptoHandler {
       if (paddedValue.sublist(1).length < 4) {
         throw InvalidLength();
       }
-      final int valueLength = ByteData.sublistView(paddedValue.sublist(1, 1 + 4)).getUint32(0, Endian.little);
+      final int valueLength =
+          ByteData.sublistView(paddedValue.sublist(1, 1 + 4))
+              .getUint32(0, Endian.little);
 
       // Ensure the length is valid
       if (paddedValue.sublist(1 + 4).length < valueLength) {
@@ -305,14 +318,15 @@ class StorageCryptoHandler {
   }
 }
 
-/// 
+///
 /// Utility functions
-/// 
+///
 
 /// Generate cryptographically-secure random bytes
 Uint8List _randomBytes(int n) {
   Random rng = Random.secure();
-  return Uint8List.fromList(List<int>.generate(n, (_) => rng.nextInt(0xFF + 1)));
+  return Uint8List.fromList(
+      List<int>.generate(n, (_) => rng.nextInt(0xFF + 1)));
 }
 
 /// Convert bytes to a string with UTF-8 encoding
@@ -344,7 +358,8 @@ Uint8List _stringToBytesBase64(String data) {
 }
 
 /// PBKDF2/SHA-512
-Future<Uint8List> _pbkdf2(Uint8List salt, Uint8List passphrase, int version) async {
+Future<Uint8List> _pbkdf2(
+    Uint8List salt, Uint8List passphrase, int version) async {
   // Set up the PBKDF
   final Pbkdf2 pbkdf = Pbkdf2(
     macAlgorithm: Hmac.sha512(),
@@ -363,27 +378,22 @@ Future<Uint8List> _pbkdf2(Uint8List salt, Uint8List passphrase, int version) asy
 }
 
 /// XChaCha20-Poly1305 encryption
-Future<SecretBox> _xChaCha20Poly1305Encrypt(Uint8List key, Uint8List nonce, Uint8List data, Uint8List aad) async {
+Future<SecretBox> _xChaCha20Poly1305Encrypt(
+    Uint8List key, Uint8List nonce, Uint8List data, Uint8List aad) async {
   final Xchacha20 aead = Xchacha20.poly1305Aead();
-  final SecretBox encryptedData = await aead.encrypt(
-    data,
-    secretKey: SecretKey(key),
-    nonce: nonce,
-    aad: aad
-  );
+  final SecretBox encryptedData = await aead.encrypt(data,
+      secretKey: SecretKey(key), nonce: nonce, aad: aad);
 
   return encryptedData;
 }
 
 /// XChaCha20-Poly1305 decryption
-Future<Uint8List> _xChaCha20Poly1305Decrypt(Uint8List key, SecretBox encryptedData, Uint8List aad) async {
+Future<Uint8List> _xChaCha20Poly1305Decrypt(
+    Uint8List key, SecretBox encryptedData, Uint8List aad) async {
   final Xchacha20 aead = Xchacha20.poly1305Aead();
   try {
-    final List<int> data = await aead.decrypt(
-      encryptedData,
-      secretKey: SecretKey(key),
-      aad: aad
-    );
+    final List<int> data =
+        await aead.decrypt(encryptedData, secretKey: SecretKey(key), aad: aad);
 
     return Uint8List.fromList(data);
   } on SecretBoxAuthenticationError {
